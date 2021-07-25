@@ -11,10 +11,31 @@ type List Item
 func (r *List) Head() *Item {
 	return (*Item)(r)
 }
+func FromSlice(slice []interface{}) *List {
+	if len(slice) == 0 {
+		return nil
+	}
+	head := &Item{
+		value: slice[0],
+	}
+	tail, _ := head.Tail()
+	for _, value := range slice[1:] {
+		tail = tail.Append(value)
+	}
+	return head.AsList()
+}
 
 func (r *List) Count() int {
 	_, count := r.Head().Tail()
 	return count
+}
+func (r *List) ToSlice() []interface{} {
+	slice := []interface{}{}
+	r.VisitAll(func(value interface{}, _ int) bool {
+		slice = append(slice, value)
+		return true
+	})
+	return slice
 }
 func (r *List) Append(list *List) {
 	r.Head().Append(list.Head())
@@ -104,16 +125,16 @@ func (r *Item) casNext(old, new *Item) bool {
 	return atomic.CompareAndSwapPointer(&next, unsafe.Pointer(old), unsafe.Pointer(new))
 }
 
-func (r *Item) Append(value interface{}) {
-	item := unsafe.Pointer(&Item{
+func (r *Item) Append(value interface{}) *Item {
+	item := &Item{
 		value: value,
 		next:  nil,
-	})
+	}
 	for {
 		tail, _ := r.Tail()
 		ptr := unsafe.Pointer(tail.next)
-		if atomic.CompareAndSwapPointer(&ptr, nil, item) {
-			break
+		if atomic.CompareAndSwapPointer(&ptr, nil, unsafe.Pointer(item)) {
+			return item
 		}
 		runtime.Gosched()
 	}
